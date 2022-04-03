@@ -70,6 +70,7 @@ class ArtworkService {
         desc: desc,
         creator_id: creator.id,
         owner_id: creator.id,
+        count_votes : 0,
         collaboration_id: null,
         votes: 0,
       });
