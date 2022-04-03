@@ -93,8 +93,8 @@ router.get('/top', async (req, res) => {
 
 // 나의 user 정보 가져오기
 router.get('/', async (req, res) => {
-  // const { user_id } = req.session;
-  const user_id= 'ss'
+  const { user_id } = req.session;
+
   try {
     if (user_id === undefined)
       return res.status(401).json('Error: Unauthorized');
