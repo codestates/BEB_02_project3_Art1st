@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, ChangeEvent } from 'react';
 import { useQuery } from 'react-query';
 
 import Typography from '@mui/material/Typography';
@@ -12,24 +12,24 @@ import ItemList from '@/container/Discover/List/ItemList';
 import { getMostUsedTags, getArtworkList } from '@/api/artwork/get';
 
 import data from '@/data/index';
+import Loading from '@/components/Loading';
 
 function index() {
   //todo: isSelling, tagId에 따라 새로운 요청이 가는지 확인 필요
-  const testData = [...data];
 
   const [checked, setChecked] = useState(false);
 
-  const [isSelling, setIsSelling] = useState<0 | 1>(0);
+  const [isSelling, setIsSelling] = useState<undefined | 1>(undefined);
   const [tagId, setTagId] = useState<undefined | number>(undefined);
 
-  const handleCheckboxChange = () => {
-    setIsSelling(checked ? 1 : 0);
+  const handleCheckboxChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setIsSelling(e.target.checked ? 1 : undefined);
     setChecked(!checked);
   };
 
   const {
     data: topTagData,
-    isLoading,
+    isLoading: tagDataLoading,
     isError,
   } = useQuery(['tag', 'top'], getMostUsedTags());
 
@@ -39,12 +39,17 @@ function index() {
     isError: isErrorArtworkList,
   } = useQuery(
     ['artwork', 'list', ['tag', tagId], ['isSell', isSelling]],
-    getArtworkList(isSelling, tagId)
+    getArtworkList(isSelling, tagId),
+    {
+      onSuccess: () => {
+        setIsSelling(isSelling);
+        setTagId(tagId);
+      },
+      staleTime: 1 * 60 * 1000,
+    }
   );
 
-  if (isLoading) return <div>Loading...</div>;
-  if (isLoadingArtworkList) return <div>Loading...</div>;
-
+  if (!isLoadingArtworkList) console.log(artworkListData);
   return (
     <>
       <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -63,9 +68,13 @@ function index() {
         />
       </Box>
 
-      <Tags data={topTagData} setTagId={setTagId} />
+      {tagDataLoading ? (
+        <Loading />
+      ) : (
+        <Tags data={topTagData} setTagId={setTagId} />
+      )}
 
-      <ItemList data={artworkListData} />
+      {isLoadingArtworkList ? <Loading /> : <ItemList data={artworkListData} />}
     </>
   );
 }
