@@ -19,6 +19,7 @@ class ArtworkService {
         this.Like = db.Like;
         this.Hashtag = db.Hashtag;
         this.ArtworkHashtag = db.ArtworkHashtag;
+        this.Reword = db.Reward;
         this.HashtagServiceInterface = new HashtagService();
         this.OrderServiceInterface = new OrderService();
         this.UserServiceInterface = new UserService();
@@ -62,11 +63,43 @@ class ArtworkService {
                 votes: 0
             })
 
-            this.OrderServiceInterface.compensate(creator_session, 3);
+            const result = await this.Reword
+            .findOrCreate({where: {user_id: creator.id}, defaults: {total_reward: 0}})
+            .then((Reword, created) => {
+                if(created){ // 해당 유저ID의 Reword 레코드 생성시
+                    this.OrderServiceInterface.compensate(creator_session, 3);
+                    this.Reword.update({
+                        total_reward : Reword[0].total_reward + 3
+                    },
+                        {
+                          where: {
+                            user_id: creator.id
+                          }
+                        }
+                    )
+                    return true
+                } else { // 해당 유저ID의 Reword 레코드 이미 존재할시
+                    if(Reword[0].total_reward >= 8) return { status : false, msg : "Daily reward has been exceeded" } // 하루 총 보상이 8개 이상일시
+                    // console.log(Reword[0].total_reward); 
+                    this.OrderServiceInterface.compensate(creator_session, 3); // 총 보상이 8개 미만이면 토큰보상을 진행합니다. 
+                    this.Reword.update({
+                        total_reward : Reword[0].total_reward + 3
+                    },
+                        {
+                          where: {
+                            user_id: creator.id
+                          }
+                        }
+                    )
+                    return true;
+                }
+            })
+
+            
 
             // 이후에 hashtag 연결 진행
             const success = await this.HashtagServiceInterface.makeArtworkTag(artwork.id, tags);
-            return success;
+            return  {data : success, compensate : result} // 토큰보상이 진행됐을시 compensate 키값으로 true를 반환합니다
 
         }
         catch(err){

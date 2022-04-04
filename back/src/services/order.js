@@ -11,6 +11,7 @@ class OrderService {
     constructor() {
         this.Orderbook = db.Orderbook;
         this.Artwork = db.Artwork;
+        this.Reword = db.Reward;
         this.DonationTransaction = db.DonationTransaction;
         this.UserServiceInterface = new UserService();
 
