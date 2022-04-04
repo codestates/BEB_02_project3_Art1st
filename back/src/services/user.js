@@ -2,7 +2,6 @@ import db from '../models/index.js';
 import lightwallet from 'eth-lightwallet';
 import { addAmount, subAmount, floating } from './utils/calculateKlay.js';
 
-
 class UserService {
   constructor() {
     this.User = db.User;
@@ -80,37 +79,49 @@ class UserService {
     }
   }
 
-    // 특정 유저 정보(내 정보임)불러오기
-    async getMyUserInfo(user_id){
-        try {
-            const user = await this.User.findOne({
-                attributes: ['id', 'name', 'user_id', 'balance', 'donation_balance', 'address', 'total_sales'],
-                where : { user_id : user_id}
-            });
+  // 특정 유저 정보(내 정보임)불러오기
+  async getMyUserInfo(user_id) {
+    try {
+      const user = await this.User.findOne({
+        attributes: [
+          'id',
+          'name',
+          'user_id',
+          'balance',
+          'donation_balance',
+          'address',
+          'total_sales',
+        ],
+        where: { user_id: user_id },
+      });
 
-            user.balance = await floating(user.balance);
-            user.donation_balance = await floating(user.donation_balance);
-            user.total_sales = await floating(user.total_sales);
+      user.balance = await floating(user.balance);
+      user.donation_balance = await floating(user.donation_balance);
+      user.total_sales = await floating(user.total_sales);
 
-            if(user === null){
-                throw Error('Not Found User');
-            }
-    
-            const user_websites = await this.Website.findAll({
-                attributes : ['id', 'site'],
-                where : {user_id : user.id}
-            });
-    
-            const user_profile = await this.Profile.findOne({
-                attributes: ['id', 'picture', 'description'],
-                where : {user_id : user.id}
-            });
-    
-            return { user : user, user_profile : user_profile, user_websites: user_websites};
-        }
-        catch(err) {
-            throw Error(err.toString());
-        }
+      if (user === null) {
+        throw Error('Not Found User');
+      }
+
+      const user_profile = await this.Profile.findOne({
+        attributes: [
+          'id',
+          'picture',
+          'description',
+          'instargram',
+          'tweeter',
+          'facebook',
+        ],
+        where: { user_id: user.id },
+      });
+
+      return {
+        user: user,
+        user_profile: user_profile,
+      };
+    } catch (err) {
+      throw Error(err.toString());
+    }
   }
 
 
@@ -127,7 +138,14 @@ class UserService {
       }
 
       const user_profile = await this.Profile.findOne({
-        attributes: ['id', 'picture', 'description', 'instargram', 'tweeter', 'facebook'],
+        attributes: [
+          'id',
+          'picture',
+          'description',
+          'instargram',
+          'tweeter',
+          'facebook',
+        ],
         where: { user_id: id },
       });
 
@@ -141,11 +159,17 @@ class UserService {
   }
 
   // 내 유저 데이터 수정
-  async putMyUserInfo(user_id, new_user_desc, new_user_picture, new_user_name, instargram, tweeter, facebook) {
+  async putMyUserInfo(
+    user_id,
+    new_user_desc,
+    new_user_picture,
+    new_user_name,
+    instargram,
+    tweeter,
+    facebook
+  ) {
     try {
-      const { user, user_profile } = await this.getMyUserInfo(
-        user_id
-      );
+      const { user, user_profile } = await this.getMyUserInfo(user_id);
 
       await user.update({ name: new_user_name });
       await user.save();
@@ -155,7 +179,7 @@ class UserService {
         description: new_user_desc,
         instargram: instargram,
         tweeter: tweeter,
-        facebook: facebook
+        facebook: facebook,
       });
       await user_profile.save();
 
@@ -283,13 +307,14 @@ class UserService {
                   });
 
                   db.Profile.create({
-                    picture: '',
+                    picture:
+                      'https://i.pinimg.com/564x/18/b9/ff/18b9ffb2a8a791d50213a9d595c4dd52.jpg',
                     description: '',
                     instargram: '',
                     tweeter: '',
                     facebook: '',
-                    user_id: userInfo.id
-                  })
+                    user_id: userInfo.id,
+                  });
                 });
               }
             );
@@ -333,7 +358,9 @@ class UserService {
       } else {
         // 있으면 세션ID 생성
         req.session.user_id = req.body.user_id;
-        req.session.save(() => {console.log(req.session);});
+        req.session.save(() => {
+          console.log(req.session);
+        });
         console.log(req.session);
       }
     } catch (err) {
