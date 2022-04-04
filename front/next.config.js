@@ -2,7 +2,12 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ['images.unsplash.com'],
+    domains: [
+      'images.unsplash.com',
+      'lh3.googleusercontent.com',
+      'i.pinimg.com',
+      'gateway.pinata.cloud',
+    ],
   },
   presets: [
     [
@@ -16,6 +21,14 @@ const nextConfig = {
     ],
   ],
   plugins: ['@emotion/babel-plugin'],
+  webpack(config) {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+    };
+
+    return config;
+  },
 };
 
 module.exports = nextConfig;
