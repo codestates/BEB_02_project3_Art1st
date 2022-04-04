@@ -87,9 +87,9 @@ class UserService {
                 where : { user_id : user_id}
             });
 
-            // user.balance = await floating(user.balance);
-            // user.donation_balance = await floating(user.donation_balance);
-            // user.total_sales = await floating(user.total_sales);
+            user.balance = await floating(user.balance);
+            user.donation_balance = await floating(user.donation_balance);
+            user.total_sales = await floating(user.total_sales);
 
             if(user === null){
                 throw Error('Not Found User');

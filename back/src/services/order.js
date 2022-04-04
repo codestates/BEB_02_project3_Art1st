@@ -152,7 +152,8 @@ class OrderService {
             });
             await artwork.save();
 
-            return {order, to, owner, artwork};
+            return true
+            // return {order, to, owner, artwork};
         }
         catch(err){
             throw Error(err.toString());
