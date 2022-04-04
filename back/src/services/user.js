@@ -80,43 +80,39 @@ class UserService {
     }
   }
 
-  // 특정 유저 정보(내 정보임)불러오기
-  async getMyUserInfo(user_id) {
-    try {
-      const user = await this.User.findOne({
-        attributes: [
-          'id',
-          'name',
-          'user_id',
-          'balance',
-          'donation_balance',
-          'address',
-          'total_sales',
-        ],
-        where: { user_id: user_id },
-      });
+    // 특정 유저 정보(내 정보임)불러오기
+    async getMyUserInfo(user_id){
+        try {
+            const user = await this.User.findOne({
+                attributes: ['id', 'name', 'user_id', 'balance', 'donation_balance', 'address', 'total_sales'],
+                where : { user_id : user_id}
+            });
 
-      user.balance = await floating(user.balance);
-      user.donation_balance = await floating(user.donation_balance);
-      user.total_sales = await floating(user.total_sales);
+            user.balance = await floating(user.balance);
+            user.donation_balance = await floating(user.donation_balance);
+            user.total_sales = await floating(user.total_sales);
 
-      if (user === null) {
-        throw Error('Not Found User');
-      }
-
-      const user_profile = await this.Profile.findOne({
-        attributes: ['id', 'picture', 'description', 'instargram', 'tweeter', 'facebook'],
-        where: { user_id: user.id },
-      });
-
-      return {
-        user: user,
-        user_profile: user_profile,
-      };
-    } catch (err) {
-      throw Error(err.toString());
-    }
+            if(user === null){
+                throw Error('Not Found User');
+            }
+    
+            const user_websites = await this.Website.findAll({
+                attributes : ['id', 'site'],
+                where : {user_id : user.id}
+            });
+    
+            const user_profile = await this.Profile.findOne({
+                attributes: ['id', 'picture', 'description'],
+                where : {user_id : user.id}
+            });
+    
+            return { user : user, user_profile : user_profile, user_websites: user_websites};
+        }
+        catch(err) {
+            throw Error(err.toString());
+        }
   }
+
 
   // 유저 정보 id로 불러오기
   async getOtherUserInfo(id) {

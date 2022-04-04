@@ -5,7 +5,9 @@ import Caver from 'caver-js';
 
 import db from '../models/index.js';
 import HashtagService from './hashtag.js';
-import Erc721Abi from '../api/abi/erc721abi.js';
+import OrderService from './order.js';
+import Erc721Abi from '../api/abi/erc721abi.js'
+import UserService from './user.js';
 
 class ArtworkService {
   #myErc721Contract;
@@ -15,76 +17,62 @@ class ArtworkService {
     this.Artwork = db.Artwork;
     this.User = db.User;
     this.Like = db.Like;
+    this.Hashtag = db.Hashtag;
+    this.ArtworkHashtag = db.ArtworkHashtag;
     this.HashtagServiceInterface = new HashtagService();
+    this.OrderServiceInterface = new OrderService();
+    this.UserServiceInterface = new UserService();
+
 
     this.caver = new Caver(process.env.BAOBAB_NETWORK);
-    this.#server = this.caver.klay.accounts.wallet.add(
-      process.env.SERVER_PRIVATEKEY
-    );
-    this.#myErc721Contract = new this.caver.klay.Contract(
-      Erc721Abi,
-      process.env.ERC721_ADDRESS,
-      {
-        from: this.#server.address, // server Addr
-      }
-    );
-  }
+    this.#server = this.caver.klay.accounts.wallet.add(process.env.SERVER_PRIVATEKEY);
+    this.#myErc721Contract = new this.caver.klay.Contract(Erc721Abi, process.env.ERC721_ADDRESS, {
+        from: this.#server.address // server Addr
+    }); 
+}
 
-  // 새로운 artwork 민팅
-  async mintNewArtwork(
-    title,
-    desc,
-    price,
-    is_selling,
-    ipfsLink,
-    tags,
-    creator_session
-  ) {
-    try {
-      // 유저 정보 추출
-      const creator = await this.User.findOne({
-        // 세션객체에 저장된 이메일로 artwork creator id, owner id 값으로 추가 할 유저 id 추출
-        where: { user_id: creator_session },
-      });
+    // 새로운 artwork 민팅
+    async mintNewArtwork(title, desc, price, is_selling, ipfsLink, tags, creator_session) {
+        try{
+            // 유저 정보 추출
+            const creator = await this.User.findOne({ // 세션객체에 저장된 이메일로 artwork creator id, owner id 값으로 추가 할 유저 id 추출 
+                where: { user_id : creator_session} 
+            });
+            
 
-      // nft 민팅 실행
-      const receipt = await this.#myErc721Contract.methods
-        .mintNFT(creator.address, ipfsLink)
-        .send({
-          from: this.#server.address,
-          to: process.env.ERC721_ADDRESS,
-          gas: 2000000,
-        });
+            // nft 민팅 실행
+            const receipt = await this.#myErc721Contract.methods.mintNFT(creator.address, ipfsLink)
+                            .send({from: this.#server.address, to: process.env.ERC721_ADDRESS, gas: 2000000});
+            
+            const tokenId = parseInt(receipt.events.Transfer.returnValues.tokenId);
+            console.log("new Minted tokenId: ", tokenId);
 
-      const tokenId = parseInt(receipt.events.Transfer.returnValues.tokenId);
-      console.log('new Minted tokenId: ', tokenId);
+            const artwork = await this.Artwork.create({
+                token_id: tokenId,
+                views: 0,
+                is_selling, is_selling,
+                price: String(price),
+                ipfsURI: ipfsLink,
+                title : title, 
+                desc : desc,
+                creator_id: creator.id,
+                owner_id: creator.id,
+                count_votes : 0,
+                collaboration_id: null,
+                votes: 0
+            })
 
-      const artwork = await this.Artwork.create({
-        token_id: tokenId,
-        views: 0,
-        is_selling,
-        is_selling,
-        price: String(price),
-        ipfsURI: ipfsLink,
-        title: title,
-        desc: desc,
-        creator_id: creator.id,
-        owner_id: creator.id,
-        count_votes : 0,
-        collaboration_id: null,
-        votes: 0,
-      });
+            this.OrderServiceInterface.compensate(creator_session, 3);
 
-      // 이후에 hashtag 연결 진행
-      const success = await this.HashtagServiceInterface.makeArtworkTag(
-        artwork.id,
-        tags
-      );
-      return success;
-    } catch (err) {
-      throw Error(err.toString());
+            // 이후에 hashtag 연결 진행
+            const success = await this.HashtagServiceInterface.makeArtworkTag(artwork.id, tags);
+            return success;
+
+        }
+        catch(err){
+            throw Error(err.toString());
+        }
     }
-  }
 
   // 하나의 artwork 작품 가져옴
   async getOneArtwork(artwork_id) {
@@ -281,57 +269,58 @@ class ArtworkService {
     }
   }
 
-  // 필터링된 작품들 조회
-  async getFilteredArtworks(tagName, forSale) {
-    console.log(tagName, forSale);
-    try {
-      if (tagName !== null && forSale === 0) {
-        // 태그에 해당되는 작품들 조회
-        let FilteredArtworks = [];
-        let FilteredHashtagId = await this.Hashtag.findOne({
-          where: { hashtag: tagName },
-        });
-        FilteredHashtagId = FilteredHashtagId.id;
+    // 필터링된 작품들 조회
+    async getFilteredArtworks(tagName, forSale) {
+        console.log(tagName, forSale);
+        try {
+          if (tagName !== null && forSale === 0) {
+            // 태그에 해당되는 작품들 조회
+            let FilteredArtworks = [];
+            let FilteredHashtagId = await this.Hashtag.findOne({
+              where: { hashtag: tagName },
+            });
+            FilteredHashtagId = FilteredHashtagId.id;
+    
+            const FilteredArtworksId = await this.ArtworkHashtag.findAll({
+              where: { hashtag_id: FilteredHashtagId },
+            });
+            for (let i = 0; i < FilteredArtworksId.length; i++) {
+              FilteredArtworks[i] = await this.Artwork.findOne({
+                where: { id: FilteredArtworksId[i].artwork_id },
+              });
+            }
+            return FilteredArtworks;
+          } else if (forSale === 1 && tagName === null) {
+            // 판매중인 작품들 조회
+            const FilteredArtworks = await this.Artwork.findAll({
+              where: { is_selling: 1 },
+            });
+            return FilteredArtworks;
+          } else {    // 요청한 태그에 해당되면서 판매중인 작품들 조회
+            let FilteredArtworks = [];
+            let FilteredHashtagId = await this.Hashtag.findOne( 
+                {where: { hashtag: tagName }}
+            )
+            FilteredHashtagId = FilteredHashtagId.id
 
-        const FilteredArtworksId = await this.ArtworkHashtag.findAll({
-          where: { hashtag_id: FilteredHashtagId },
-        });
-        for (let i = 0; i < FilteredArtworksId.length; i++) {
-          FilteredArtworks[i] = await this.Artwork.findOne({
-            //
-            where: { id: FilteredArtworksId[i].artwork_id },
-          });
+            const FilteredArtworksId = await this.ArtworkHashtag.findAll( 
+                {where: { hashtag_id: FilteredHashtagId }}
+            )
+            console.log(FilteredArtworksId)
+            for(let i=0; i < FilteredArtworksId.length; i++){
+                const result = await this.Artwork.findOne({ 
+                    where : { id : FilteredArtworksId[i].artwork_id, is_selling : 1}
+                });
+                if(result){
+                    FilteredArtworks.push(result);
+                }
+            }
+            return FilteredArtworks;
+            }
+        } catch (err) {
+          throw Error(err.toString());
         }
-        return FilteredArtworks;
-      } else if (forSale === 1 && tagName === null) {
-        // 판매중인 작품들 조회
-        const FilteredArtworks = await this.Artwork.findAll({
-          where: { is_selling: 1 },
-        });
-        return FilteredArtworks;
-      } else {
-        // 요청한 태그에 해당되면서 판매중인 작품들 조회
-        let FilteredArtworks = [];
-        let FilteredHashtagId = await this.Hashtag.findOne({
-          where: { hashtag: tagName },
-        });
-        FilteredHashtagId = FilteredHashtagId.id;
-
-        const FilteredArtworksId = await this.ArtworkHashtag.findAll({
-          where: { hashtag_id: FilteredHashtagId },
-        });
-        for (let i = 0; i < FilteredArtworksId.length; i++) {
-          FilteredArtworks[i] = await this.Artwork.findOne({
-            //
-            where: { id: FilteredArtworksId[i].artwork_id, is_selling: 1 },
-          });
-        }
-        return FilteredArtworks;
       }
-    } catch (err) {
-      throw Error(err.toString());
-    }
-  }
 
   // 내가 구매한 작품들 조회
   async getCollectedArtworks(user_id) {
@@ -379,7 +368,7 @@ class ArtworkService {
     }
   }
 
-  // 내가 좋아요 누른 작품들 조회
+    // 내가 좋아요 누른 작품들 조회
   async getFavoritedArtworks(user_id) {
     try {
       const FavoritedArtworks = [];
@@ -412,64 +401,106 @@ class ArtworkService {
           where: { id: artworkId[i] },
         });
 
-        // creator_name 호출
-        const creator_name = await this.User.findOne({
-          attributes: [['name', 'creator_name']],
-          where: { id: artworkInfo.dataValues.creator_id },
-        });
+        const additionalInfo = await this.getOneArtworkAdditional(artworkId[i], artworkInfo.dataValues.creator_id, artworkInfo.dataValues.owner_id);
 
-        const owner_name = await this.User.findOne({
-          attributes: [['name', 'owner_name']],
-          where: { id: artworkInfo.dataValues.owner_id },
-        });
-
-        const comment_count = await db.Comment.count({
-          where: { artwork_id: artworkInfo.dataValues.artwork_id },
-        });
-
-        const like_count = await db.Like.count({
-          where: { artwork_id: artworkInfo.dataValues.artwork_id },
-        });
-
-        FavoritedArtworks[i] = Object.assign(
-          {},
-          artworkInfo.dataValues,
-          creator_name.dataValues,
-          owner_name.dataValues,
-          { comment_count },
-          { like_count }
-        );
-        delete FavoritedArtworks[i].creator_id;
-        delete FavoritedArtworks[i].owner_id;
+        FavoritedArtworks[i] = Object.assign({}, artworkInfo.dataValues, additionalInfo);
       }
-      return FavoritedArtworks;
     } catch (err) {
-      throw Error(err.toString());
+        throw Error(err.toString());
+        }
     }
-  }
 
-  //  작품 구매 DB 소유권 업데이트
-  async putBoughtArtworks(user_id, artwork_id) {
-    try {
-      let userId = await this.User.findOne({
-        where: { user_id: user_id },
-      }).catch((err) => {
-        // 유저 id 추출
-        console.log(err);
-      });
-      userId = userId.dataValues.id;
+    //  작품 구매 DB 소유권 업데이트
+    async putBoughtArtworks (user_id, artwork_id){
+        try {
 
-      const artwork = await this.getOneArtwork(artwork_id);
-      await artwork.update({
-        is_selling: 0, // 구매하면 일단 판매 x?? 구매 후 판매 하려면 다시 판매등록 해야한다고 가정해서 판매x로 일단 했습니다.
-        owner_id: userId,
-      });
-      await artwork.save();
-      return artwork;
-    } catch (err) {
-      throw Error(err.toString());
+            let userId = await this.User.findOne({where: {user_id: user_id}}).catch((err) => { // 유저 id 추출
+                console.log(err);
+            })
+            userId = userId.dataValues.id
+
+            const artwork = await this.getOneArtwork(artwork_id);
+            await artwork.update({
+                is_selling: 0, // 구매하면 일단 판매 x?? 구매 후 판매 하려면 다시 판매등록 해야한다고 가정해서 판매x로 일단 했습니다. 
+                owner_id: userId
+            });
+            await artwork.save();
+            return artwork;
+        }
+        catch (err){
+            throw Error(err.toString());
+        }
     }
-  }
+
+
+    async buyNft(to_id, artwork_id){ // nft 기준 to. to는 돈을 내는 사람임.
+        try {
+            const result = await this.OrderServiceInterface.purchase(to_id, artwork_id);
+            return result
+        } catch (err){
+            throw Error(err.toString());
+        }
+    }
+
+    async saleArtwork (artwork_id, price, user_id){
+        try{
+            // 우선, 실제 존재하는 유저인지 확인
+            const userId = await this.UserServiceInterface.getOneUser(user_id);
+
+            // 아트워크 가져오기
+            const artwork = await this.Artwork.findOne({where: {id: artwork_id}});
+    
+            // 유효성 검사
+            // 소유주인지 확인
+            if(Number(artwork.owner_id) !== Number(userId.id)){ 
+                throw Error('Not owner of this Artwork');
+            }
+            // 판매중인지 확인 
+            if(artwork.is_selling){
+                throw Error('already on sale');
+            }
+
+            await artwork.update({
+                is_selling: 1, // 구매하면 일단 판매 x?? 구매 후 판매 하려면 다시 판매등록 해야한다고 가정해서 판매x로 일단 했습니다. 
+                price: price
+            });
+            await artwork.save();
+            return artwork;
+        } catch (err){
+            throw Error(err.toString());
+        }
+     
+    }
+
+    async cancelSale (artwork_id, user_id){
+        try {
+            // 우선, 실제 존재하는 유저인지 확인
+            const userId = await this.UserServiceInterface.getOneUser(user_id);
+
+            // 아트워크 가져오기
+            const artwork = await this.Artwork.findOne({where: {id: artwork_id}});
+
+
+            // 유효성 검사
+            // 소유주인지 확인
+            if(Number(artwork.owner_id) !== Number(userId.id)){ 
+                throw Error('Not owner of this Artwork');
+            }
+            // 판매중인지 확인 
+            if(!artwork.is_selling){
+                throw Error('already not on sale');
+            }
+
+            await artwork.update({
+                is_selling: 0, // 구매하면 일단 판매 x?? 구매 후 판매 하려면 다시 판매등록 해야한다고 가정해서 판매x로 일단 했습니다. 
+                price: 0
+            });
+            await artwork.save();
+            return artwork;
+        } catch (err){
+            throw Error(err.toString());
+        }
+    }
 }
 
 export default ArtworkService;
