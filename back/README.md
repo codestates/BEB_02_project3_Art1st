@@ -155,3 +155,42 @@ package.json에서 아래 명령어 중 '--cron' 부분 원하시는 대로 수�
 이렇게 3가지 명령어를 각각 다른 터미널창(back 폴더로 이동해야 함)에서 실행시키면 됩니다.<br>
 사실, npm run sendTx랑 npm run checkTx는 pm2로 올리는 거라 같은 터미널에서 실행 시키셔도 되요. <br>
 둘 다 실행 시킨 후에 pm2 monit 명령어 이용하시면 각각 10에 한번씩 재실행 되면서 로그 뿌리는거 확이하실 수 있습니다.
+
+# 일일 토큰보상제한을 위해 MYSQL Event Scheduler를 이용하여 이벤트를 등록해야 합니다.
+
+MySQL Event Scheduler 배치작업은 콘솔에서 root계정으로 접속하여 직접! 진행합니다.
+
+1. MYSQL 로그인 
+```
+mysql -u root -p
+```
+2. 이벤트 스케줄러 상태 확인
+```
+SHOW VARIABLES LIKE 'event%'; 
+```
+3. 이벤트 스케줄러 ON/OFF
+```
+SET GLOBAL event_scheduler = ON;
+
+SET GLOBAL event_scheduler = OFF;
+```
+4. 하루에 한번 반복하며 reward 테이블의 모든 레코드를 삭제하는 이벤트 생성 
+```
+CREATE EVENT jsg_event2 ON SCHEDULE EVERY 1 DAY STARTS CURRENT_TIMESTAMP DO DELETE FROM rewards;
+```
+
+ (1분마다 반복해서 reward 테이블의 레코드 모두가 삭제되는지 테스트 해보세요) 1분에 한번 반복하며 reward 테이블의 모든 레코드를 삭제하는 이벤트 생성
+ ```
+CREATE EVENT jsg_event2 ON SCHEDULE EVERY 1 MINUTE STARTS CURRENT_TIMESTAMP DO DELETE FROM rewards;
+ ```
+
+5. 이벤트 스케줄러 확인 쿼리
+```
+SELECT * FROM information_schema.events;
+or
+SHOW EVENTS;
+```
+6. 스케줄 삭제
+```
+DROP event '이벤트이름`
+```
