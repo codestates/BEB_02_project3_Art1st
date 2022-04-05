@@ -15,6 +15,7 @@ import want from './want.js';
 import orderbook from './orderbook.js';
 import collaboration from './collaboration.js';
 import vote from './vote.js';
+import reward from './reward.js';
 
 
 const env = process.env.NODE_ENV || 'development';
@@ -37,7 +38,12 @@ db.Profile = profile(sequelize, Sequelize);
 db.Want = want(sequelize, Sequelize);
 db.Collaboration = collaboration(sequelize, Sequelize);
 db.Vote = vote(sequelize, Sequelize);
+db.Reward = reward(sequelize, Sequelize);
 
+
+// reward user_id 외래키 설정
+db.User.hasOne(db.Reward, { foreignKey: 'user_id' });
+db.Reward.belongsTo(db.User, { foreignKey: 'user_id' });
 
 // artwork collaboration_id 외래키 설정
 db.Collaboration.hasMany(db.Artwork, {foreignKey: 'collaboration_id', allowNull: false});

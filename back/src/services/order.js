@@ -11,6 +11,7 @@ class OrderService {
     constructor() {
         this.Orderbook = db.Orderbook;
         this.Artwork = db.Artwork;
+        this.Reword = db.Reward;
         this.DonationTransaction = db.DonationTransaction;
         this.UserServiceInterface = new UserService();
 
@@ -152,7 +153,8 @@ class OrderService {
             });
             await artwork.save();
 
-            return {order, to, owner, artwork};
+            return true
+            // return {order, to, owner, artwork};
         }
         catch(err){
             throw Error(err.toString());
